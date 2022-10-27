@@ -1,16 +1,46 @@
-import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
+import { Construct, Node } from 'constructs';
 
-export class TodolistCdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+import { AttributeType, Table } from 'aws-cdk-lib/aws-dynamodb';
+import { Runtime, FunctionUrlAuthType } from 'aws-cdk-lib/aws-lambda';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+
+import * as path from 'path';
+
+export class TodolistCdkStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
+    // Define DynamoDB table
+    const table = new Table(this, 'TodoList', {
+      partitionKey: {
+        name: "id",
+        type: AttributeType.STRING
+      }
+    });
 
-    // example resource
-    // const queue = new sqs.Queue(this, 'TodolistCdkQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    // Define todo Lambda
+    const dynamoLambda = new NodejsFunction(this, "DynamoLambdaHandler", {
+      runtime: Runtime.NODEJS_16_X,
+      entry: path.join(__dirname, `/../functions/todolist.ts`),
+      handler: "handler",
+      environment: {
+        TABLE_NAME: table.tableName,
+      }
+    });
+
+    // Grant permissions to the Lambda function to write to DynamoDB table.
+    table.grantReadWriteData(dynamoLambda);
+
+    const myFunctionUrl = dynamoLambda.addFunctionUrl({
+      authType: FunctionUrlAuthType.NONE,
+      cors: {
+        allowedOrigins: ['*'],
+      }
+    });
+
+    new CfnOutput(this, 'FunctionUrl', {
+      value: myFunctionUrl.url,
+    });
   }
 }
