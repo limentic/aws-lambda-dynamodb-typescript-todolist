@@ -1,6 +1,4 @@
-import { Handler } from 'aws-lambda';
 import { DynamoDB } from 'aws-sdk';
-
 import { nanoid } from 'nanoid';
 
 const db = new DynamoDB.DocumentClient();
@@ -12,44 +10,38 @@ interface todoObject {
     done: boolean;
 }
 
-export const handler: Handler = async (event, context) => {
-    // TODO : Implement router
-    const method = event.requestContext.http.method;
-
-    if (method === 'GET') {
-        return {
-            statusCode: 200,
-            body: 'OK'
-        };
-    } else if (method === 'POST') {
-        return await setTodo(event);
-    }
-}
-
-async function setTodo(event: any) {
-    try {
-        const body = JSON.parse(event.body);
-        const todo: todoObject = {
+export async function setTodo(todo: string): Promise<any> {
+    if (todo !== '') {
+        const todoObject: todoObject = {
             id: nanoid(),
-            todo: body.todo,
-            done: false
+            todo: todo!,
+            done: false,
         };
 
         const params: DynamoDB.DocumentClient.PutItemInput = {
             TableName: TABLE_NAME,
-            Item: todo
+            Item: todoObject,
         };
 
         await db.put(params).promise();
 
-        return {
-            statusCode: 200,
-            body: JSON.stringify(todo)
-        };
-    } catch (err) {
-        return {
-            statusCode: 500,
-            body: JSON.stringify('Internal server error')
-        };
+        Promise.resolve(todoObject);
     }
+    Promise.reject('Invalid request');
+}
+
+export async function getTodo(id: string): Promise<any> {
+    if (id !== '') {
+        const params: DynamoDB.DocumentClient.GetItemInput = {
+            TableName: TABLE_NAME,
+            Key: {
+                id: id,
+            },
+        };
+
+        const data = await db.get(params).promise();
+
+        Promise.resolve(data.Item);
+    }
+    Promise.reject('Invalid request');
 }
